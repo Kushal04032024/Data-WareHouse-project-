@@ -1,0 +1,81 @@
+create  table dbo.FACT_CDW_F_SALES_BR(SALES_KEY int identity (1,1),[DAY] varchar(max), MONTH varchar(max),YEAR varchar(max),-- creating the fact table at this point.
+CUSTOMER_SSN bigint,SUPPLIER_SSN bigint,BRANCH_CODE bigint,-- we are auto-incrementing the sales key using identity function
+BRANCH_NAME varchar(max),PRODUCT_CODE bigint,PRODUCT_NAME varchar(max),
+QUANTITY_SOLD bigint,SALES_TOTAL_AMOUNT bigint,CREATED_DATE datetime,CREATED_BY varchar(max));
+ 
+ 
+drop table dbo.FACT_CDW_F_SALES_BR-- a cautionary measure in case there is a need to make changes in the table
+MERGE dbo.FACT_CDW_F_SALES_BR AS TARGET-- we use the fact table created as the target table for the merge to happen
+ 
+	USING(
+ 
+			Select Distinct L.*,  B.BRANCH_CODE, P.PRODUCT_CODE,P.PRODUCT_PRICE /* here we perform multiple inner joins on the source table so that we can take
+			  values from the product and banch table*/
+			FROM  dbo.STAGING_CDW_SAPP_F_SALES_BR L
+ 
+			Inner JOIN dbo.STAGING_CDW_SAPP_D_BRANCH B
+ 
+			ON L.BRANCH_NAME = B.BRANCH_NAME
+ 
+			Inner JOIN dbo.STAGING_CDW_SAPP_PRODUCT P
+ 
+			ON P.PRODUCT_NAME = L.PRODUCT_NAME
+ 
+		) AS SOURCE 
+		ON  TARGET.CUSTOMER_SSN=SOURCE.CUSTOMER_SSN and TARGET.SUPPLIER_SSN=SOURCE.SUPPLIER_SSN-- we use the customer_ssn and supplier_ssn as the merging coloumns.
+	WHEN MATCHED AND (-- performing the check operation in this case
+ 
+			TARGET.DAY !=SOURCE.DAY OR
+ 
+			TARGET.MONTH !=SOURCE.MONTH OR
+ 
+			TARGET.YEAR !=SOURCE.YEAR OR
+ 
+			TARGET.CUSTOMER_SSN !=SOURCE.CUSTOMER_SSN OR
+ 
+			TARGET.SUPPLIER_SSN !=SOURCE.SUPPLIER_SSN OR
+ 
+			TARGET.PRODUCT_NAME !=SOURCE.PRODUCT_NAME OR
+ 
+			TARGET.QUANTITY_SOLD !=SOURCE.QUANTITY_SOLD
+ 
+			
+			)
+ 
+	THEN
+ 
+			UPDATE SET -- performing the update operation on the coloumn values.
+ 
+			TARGET.DAY = SOURCE.DAY,
+ 
+			TARGET.MONTH =SOURCE.MONTH,
+ 
+			TARGET.YEAR =SOURCE.YEAR,
+ 
+			TARGET.CUSTOMER_SSN= SOURCE.CUSTOMER_SSN,
+ 
+			TARGET.SUPPLIER_SSN = SOURCE.SUPPLIER_SSN,
+ 
+			TARGET.BRANCH_CODE = SOURCE.BRANCH_CODE,
+ 
+			TARGET.PRODUCT_NAME = SOURCE.PRODUCT_NAME,
+ 
+			TARGET.PRODUCT_CODE = SOURCE.PRODUCT_CODE,
+ 
+			TARGET.QUANTITY_SOLD = SOURCE.QUANTITY_SOLD,
+ 
+			TARGET.SALES_TOTAL_AMOUNT = cast(SOURCE.QUANTITY_SOLD as bigint) * cast(SOURCE.PRODUCT_PRICE as bigint),-- casting into bigint as earlier mentioned in varchar values.
+ 
+			TARGET.CREATED_DATE = GETDATE(),-- using getdate operation for the purpose of getting current date at the time of entry.
+ 
+			TARGET.CREATED_BY = 'STAGING.CDW_SAPP_SALES'
+ 
+	WHEN NOT MATCHED BY TARGET THEN  INSERT( DAY, MONTH , YEAR, CUSTOMER_SSN, SUPPLIER_SSN, BRANCH_NAME,
+ 
+											PRODUCT_NAME, QUANTITY_SOLD, SALES_TOTAL_AMOUNT , CREATED_DATE, CREATED_BY, BRANCH_CODE, PRODUCT_CODE)
+ 
+	VALUES (SOURCE.DAY,SOURCE.MONTH,SOURCE.YEAR, SOURCE.CUSTOMER_SSN,SOURCE.SUPPLIER_SSN,
+ 
+			SOURCE.BRANCH_NAME,SOURCE.PRODUCT_NAME,SOURCE.QUANTITY_SOLD, cast(SOURCE.QUANTITY_SOLD as bigint)* cast(SOURCE.PRODUCT_PRICE as bigint),
+			GETDATE(),'STAGING.CDW_SAPP_SALES',
+           source.branch_code, source.product_code);-- perfroming the insert operation in case values do not match
