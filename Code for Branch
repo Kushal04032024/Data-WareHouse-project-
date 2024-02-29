@@ -1,0 +1,97 @@
+Create table dbo.staging_CDW_SAPP_D_BRANCH (
+[BRANCH_CODE] bigint  primary key not null
+      ,[BRANCH_NAME] nvarchar(max)
+      ,[BRANCH_STREET] nvarchar(max)
+      ,[BRANCH_CITY] nvarchar(max)
+      ,[BRANCH_STATE] nvarchar(max)
+      ,[BRANCH_ZIP] bigint 
+      ,[BRANCH_PHONE] bigint
+	  );
+ 
+SELECT * FROM dbo.staging_CDW_SAPP_D_BRANCH
+DROP TABLE dbo.staging_CDW_SAPP_D_BRANCH
+ 
+
+go
+CREATE PROCEDURE bp
+AS
+BEGIN
+    MERGE dbo.staging_CDW_SAPP_D_BRANCH AS Target
+    USING (SELECT *,
+                  TRY_CAST(branch_zip AS BIGINT) AS branch_zip_bigint,
+                  TRY_CAST(branch_phone AS BIGINT) AS branch_phone_bigint
+           FROM [dbo].[CDW_SAPP_BRANCH]) AS source
+    ON Target.branch_code = source.branch_code
+    WHEN MATCHED AND
+    (
+        Target.BRANCH_NAME != source.BRANCH_NAME OR
+        Target.BRANCH_STREET != source.BRANCH_STREET OR
+        Target.BRANCH_CITY != source.BRANCH_CITY OR
+        Target.BRANCH_STATE != source.BRANCH_STATE OR
+        Target.BRANCH_ZIP != source.branch_zip_bigint OR
+        Target.BRANCH_PHONE != source.branch_phone_bigint
+    )
+    THEN
+        UPDATE SET
+            Target.branch_name = source.branch_name,
+            Target.branch_street = source.branch_street,
+            Target.branch_city = source.branch_city,
+            Target.branch_state = source.branch_state,
+            Target.branch_zip= source.branch_zip_bigint,
+            Target.branch_phone = source.branch_phone_bigint
+    WHEN NOT MATCHED THEN 
+        INSERT (BRANCH_CODE, BRANCH_NAME, BRANCH_STREET, BRANCH_CITY, BRANCH_STATE, BRANCH_ZIP, BRANCH_PHONE)
+        VALUES(source.branch_code,source.branch_name,source.branch_street, source.branch_city,source.branch_state,
+        source.branch_zip_bigint,source.branch_phone_bigint);
+END
+EXEC bp
+select * from dbo.staging_CDW_SAPP_D_BRANCH
+drop procedure bp
+ 
+-----------------------------------------------------------------------------------
+ 
+create table dbo.CDW_SAPP_D_BRANCH (
+[BRANCH_CODE] bigint  primary key not null
+      ,[BRANCH_NAME] nvarchar(max)
+      ,[BRANCH_STREET] nvarchar(max)
+      ,[BRANCH_CITY] nvarchar(max)
+      ,[BRANCH_STATE] nvarchar(max)
+      ,[BRANCH_ZIP] bigint 
+      ,[BRANCH_PHONE] bigint
+	  ,[MODIFIED_DATE] date);
+drop table dbo.staging_CDW_SAPP_D_BRANCH
+drop table dbo.CDW_SAPP_D_BRANCH
+SELECT * FROM [dbo].[CDW_SAPP_BRANCH]
+SELECT * FROM dbo.CDW_SAPP_D_BRANCH
+
+---------------------------------------------------------------------------------BRANCH DIM SCD TYPE 1
+
+go
+create procedure bp
+as
+begin
+	merge dbo.CDW_SAPP_D_BRANCH as Target
+	using [dbo].CDW_SAPP_BRANCH as source
+	on Target.branch_code = source.branch_code
+WHEN MATCHED AND (target.BRANCH_NAME!=source.BRANCH_NAME OR
+target.BRANCH_STREET!=source.BRANCH_STREET OR
+target.BRANCH_CITY!=source.BRANCH_CITY OR
+target.BRANCH_STATE!=source.BRANCH_STATE OR
+target.BRANCH_ZIP!=source.BRANCH_ZIP OR
+target.BRANCH_PHONE!=source.BRANCH_PHONE)
+	then update set
+		target.branch_name = source.branch_name,
+		target.branch_street=source.branch_street,
+		target.branch_city = source.branch_city,
+		target.branch_state = source.branch_state,
+		target.branch_zip= source.branch_zip,
+		target.branch_phone=source.branch_phone,
+		target.modified_date=getdate()
+	WHEN NOT MATCHED THEN 
+	INSERT VALUES(source.branch_code,source.branch_name,source.branch_street, source.branch_city,source.branch_state,
+	source.branch_zip,source.branch_phone,getdate());
+end
+exec bp
+DROP PROCEDURE bp
+ 
+SELECT * FROM dbo.CDW_SAPP_D_BRANCH;
