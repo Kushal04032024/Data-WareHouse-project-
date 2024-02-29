@@ -1,0 +1,49 @@
+CREATE TABLE [dbo].[staging_CDW_SAPP_D_CALENDAR](
+	[TIMEID] [bigint] NULL,
+	[TIME_KEY] [nvarchar](max) NULL
+)
+INSERT INTO [dbo].[staging_CDW_SAPP_D_CALENDAR] ( TIMEID,TIME_KEY )
+SELECT TIMEID,TIME_KEY
+FROM [dbo].[CDW_SAPP_D_CALENDAR]
+--------------------------------------------------------------------------------------------------------------
+with keys7 as
+(
+	select c.TIMEID as TIMEID,CONVERT(DATE,concat(SUBSTRING(c.TIME_KEY,4,4),'-',SUBSTRING(c.TIME_KEY,2,2),'-','0',SUBSTRING(c.TIME_KEY,1,1)) )as TIME_KEY
+	from [dbo].[staging_CDW_SAPP_D_CALENDAR] c
+	where len(c.TIME_KEY)=7
+),
+ 
+keys8 as
+(
+	select c.TIMEID as TIMEID,CONVERT(DATE,concat(SUBSTRING(c.TIME_KEY,5,4),'-',SUBSTRING(c.TIME_KEY,3,2),'-',SUBSTRING(c.TIME_KEY,1,2))) as TIME_KEY
+	from [dbo].[staging_CDW_SAPP_D_CALENDAR] c
+	where len(c.TIME_KEY)=8
+)
+SELECT C.TIMEID,DAY(C.TIME_KEY) AS DAY,MONTH(C.TIME_KEY) AS MONTH,DATEPART(QUARTER,C.TIME_KEY) AS QUARTER ,YEAR(C.TIME_KEY) AS YEAR INTO CDW_SAPP_D_TIME FROM (
+SELECT * from keys7 l7
+union
+SELECT * from keys8 l8)C
+
+-----------------------------------------------------------------------------------------------------------------
+DROP TABLE CDW_SAPP_D_TIME
+SELECT * FROM [dbo].CDW_SAPP_D_TIME
+select * from [dbo].[CDW_SAPP_D_CALENDAR]
+select * from [dbo].[staging_CDW_SAPP_D_CALENDAR]
+----------------------------------------------------------------------------------------------------------------------
+declare tbls cursor for
+select object_name([object_id])
+from sys.identity_columns
+where objectproperty([object_id], 'IsMSShipped') = 0
+declare @tbl_name sysname, @cmd nvarchar(max)
+open tbls
+ 
+while(1=1)
+begin
+   fetch next from tbls into @tbl_name
+   if(@@fetch_status <> 0)
+      break
+   set @cmd = 'DBCC CHECKIDENT(''' + @tbl_name + ''', RESEED, 1)'
+   exec(@cmd)
+end
+close tbls
+deallocate tbls
