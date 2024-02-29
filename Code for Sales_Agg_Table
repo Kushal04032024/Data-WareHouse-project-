@@ -1,0 +1,21 @@
+Drop table if exists dbo.CDW_SAPP_F_AGG-- checking whether any such table pre-exists
+Select 
+   BRANCH_CODE
+  ,BRANCH_NAME
+  ,PRODUCT_CODE
+  ,PRODUCT_NAME
+  ,SUM(QUANTITY_SOLD) AS TOTAL_QUANTITY
+  ,SUM(SALES_TOTAL_AMOUNT) AS TOTAL_AMOUNT
+  ,GETDATE() AS CREATED_DATE 
+Into dbo.CDW_SAPP_F_AGG
+FROM dbo.FACT_CDW_F_SALES_BR
+where MONTH='May'-- we are taking the month name as inout from the user for grouping purpose
+ 
+GROUP BY -- we are perfroming group by operation through following coloumns
+  BRANCH_CODE
+  ,BRANCH_NAME
+  ,PRODUCT_CODE
+  ,PRODUCT_NAME
+ 
+   
+SELECT * FROM dbo.CDW_SAPP_F_AGG;-- for the selection of output data.
