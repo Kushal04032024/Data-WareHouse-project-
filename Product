@@ -1,0 +1,159 @@
+----------------------------STAGING-------------------------
+Create table dbo.staging_CDW_SAPP_PRODUCT(
+ 
+	PRODUCT_CODE bigint NULL,
+ 
+	PRODUCT_NAME varchar(max) NULL,
+ 
+	SUPPLIER_SSN bigint NULL,
+ 
+	PRODUCT_PRICE float NULL,
+ 
+	);
+	drop table dbo.staging_CDW_SAPP_PRODUCT
+ 
+	select * from dbo.staging_CDW_SAPP_PRODUCT
+ 
+go
+ 
+create procedure staging_product
+ 
+as
+ 
+begin
+ 
+	merge dbo.staging_CDW_SAPP_PRODUCT as Target
+ 
+	using [dbo].[CDW_SAPP_PRODUCT] as source
+ 
+	on Target.PRODUCT_CODE = source.PRODUCT_CODE
+ 
+WHEN MATCHED AND (target.product_name != source.product_name OR
+ 
+		target.supplier_ssn != source.supplier_ssn OR
+ 
+		target.product_price != source.product_price)
+ 
+	then update set
+ 
+		target.product_name = source.product_name ,
+ 
+		target.supplier_ssn = source.supplier_ssn  ,
+ 
+		target.product_price = source.product_price
+ 
+	WHEN NOT MATCHED THEN
+ 
+	INSERT VALUES(source.product_code ,source.product_name,source.supplier_ssn,source.product_price);
+ 
+end
+ 
+drop procedure staging_product
+ 
+EXEC staging_product
+-------------------WAREHOUSING-----------------------------
+ 
+ 
+create table dbo.CDW_SAPP_D_PRODUCT (
+ 
+    PRODUCT_CODE bigint NULL,
+ 
+	PRODUCT_NAME varchar(max) NULL,
+ 
+	SUPPLIER_SSN bigint NULL,
+ 
+	PRODUCT_PRICE float NULL,
+ 
+	MODIFIED_DATE date
+ 
+	);
+select * from  CDW_SAPP_PRODUCT
+ 
+select * from dbo.staging_CDW_SAPP_PRODUCT
+ 
+select * from dbo.CDW_SAPP_D_PRODUCT
+ 
+drop table dbo.CDW_SAPP_D_PRODUCT
+
+------------finding dublicate data in staging table-----------
+ 
+with productcte as
+ 
+( select *, ROW_NUMBER()Over(PARTITION BY PRODUCT_CODE ORDER BY PRODUCT_CODE) as RowNumber
+ 
+from staging_CDW_SAPP_PRODUCT
+ 
+)
+ 
+select * from productcte
+
+--------------------------deleting dublicate data---------------------------------------
+ 
+with productcte as
+ 
+( select *, ROW_NUMBER()Over(PARTITION BY PRODUCT_CODE ORDER BY PRODUCT_CODE) as RowNumber
+ 
+from staging_CDW_SAPP_PRODUCT
+ 
+)
+ 
+delete from productcte where RowNumber>1
+
+select * from staging_CDW_SAPP_PRODUCT
+-----------------------REMOVING TRALLING SPACE------------------------------------------
+ 
+UPDATE
+ 
+    staging_CDW_SAPP_PRODUCT
+ 
+SET
+ 
+    PRODUCT_NAME = RTRIM(PRODUCT_NAME)
+-----------------------SCD TYPE 1 ---------------------------------------
+go
+ 
+create procedure pp
+ 
+as
+ 
+begin
+ 
+	merge [dbo].[CDW_SAPP_D_PRODUCT] as Target
+ 
+	using dbo.staging_CDW_SAPP_PRODUCT as source
+ 
+	on Target.PRODUCT_CODE = source.PRODUCT_CODE
+ 
+	when matched and (target.product_name != source.product_name OR
+ 
+		target.supplier_ssn != source.supplier_ssn OR
+ 
+		target.product_price != source.product_price)
+ 
+	then update set
+ 
+		target.product_name = source.product_name ,
+ 
+		target.supplier_ssn = source.supplier_ssn ,
+ 
+		target.product_price = source.product_price,
+ 
+		target.modified_date=getdate()
+ 
+	WHEN NOT MATCHED THEN
+ 
+	INSERT VALUES(
+ 
+	source.product_code ,source.product_name,source.supplier_ssn,source.product_price,getdate());
+ 
+end
+ 
+exec pp
+ 
+drop procedure pp
+ 
+select * from CDW_SAPP_D_PRODUCT;
+select * from CDW_SAPP_D_PRODUCT
+ 
+ 
+SELECT * FROM CDW_SAPP_PRODUCT
